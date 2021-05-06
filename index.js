@@ -11,12 +11,13 @@ const bodyParser = require('body-parser');
 const { router } = require('json-server');
 const { constants, loadavg } = require('os');
 const md5 = require('md5');
-const { updateOne } = require('./models/products.model');
+// const { updateOne } = require('./models/products.model');
 const { log } = require('console');
 const { send } = require('process');
 
 
-const Product = require('./models/products.model');
+// const Product = require('./models/products.model');
+const Checkout = require('./models/checkout.model');
 const User = require('./models/user.model');
 const Coupon = require('./models/discount.model');
 const Admin = require('./models/admin.model');
@@ -47,6 +48,7 @@ const multer = require("multer");
 const { exec } = require('child_process');
 const { isError } = require('util');
 const { IncomingMessage } = require('http');
+const { resolveSoa } = require('dns');
 var storage = multer.diskStorage({
   destination: function (req, file, cb) {
       cb(null, "./uploads/images")
@@ -98,18 +100,23 @@ app.use('/uploads',express.static(path.join(__dirname, '/uploads')));
 // Login 
 
 app.post('/login', function(req , res){
-  // console.log(req.body);
+  // console.log(req.body.tokenDevice);
   User.find({email: req.body.usernameAPI})
   .then((result)=> {
-    // console.log(result[0].password);
-    // console.log("---------------");
-    // console.log(md5(req.body.passwordAPI));
+
     if(result[0].password == md5(req.body.passwordAPI)){
+      const set = {
+
+        tokenDevices:  [...result[0].tokenDevices, { value: req.body.tokenDevice}]
+      }
+      User.updateOne({_id: result[0]._id}, set).then(()=>{})
+      
       res.status(200).send({
       "message": 'Đăng nhập thành công',
       'valid' : true,
       "id": result[0]._id,
       "email": result[0].email
+      
       })
     } else {
       res.status(200).send({
@@ -267,7 +274,7 @@ app.get("/dataProfileadmin" , function(req ,res ){
   })
 })
 app.get("/dataCarAdmin" , function(req ,res ){
-  FormCar.find({})
+  FormCar.find({}).populate('idUser')
   .exec((err ,data) => {
     if(err){
       console.log("error");
@@ -294,6 +301,20 @@ app.post('/updateStatus' , function(req , res) {
   
   })
 })
+
+app.get('/checkoutAdmin' , async function(req ,res){
+  
+   const data = await Checkout.find({}).populate('idUserCheckOut').populate('idCar').populate('idHost')
+   .then(dt=>{
+     res.send(dt)
+    // console.log(data);
+   })
+   
+  
+ 
+  
+})
+
 
 app.post('/upload', uploadUser.single('photo'), (req, res) => {
   // console.log(req);
@@ -382,6 +403,8 @@ app.post('/formCar' , function(req ,res){
   const district = req.body.district;
   const ward = req.body.ward;
   const imageCars = req.body.imageCar;
+  const location = req.body.location;
+
   // console.log(imageCars);
 
   // console.log(idUser,licen,years,seat,price,transmission,fuel,model,brand,sunroof,bluetooth,gps,map,camera,note,fueled,address,district,ward);
@@ -406,7 +429,8 @@ app.post('/formCar' , function(req ,res){
     gps: gps,
     map: map,
     cameraback: camera,
-    imagesCar: imageCars
+    imagesCar: imageCars,
+    location: location,
    
     },function(err){
      if(err){
@@ -477,7 +501,7 @@ app.post("/selectedCoupon" , async(req , res) => {
 app.get("/getDetailCar/type=:type" , function(req ,res){
   // console.log(req.params.type);
   const type= req.params.type;
-  console.log(type);
+  // console.log(type);
   FormCar.find({address: type})
     .exec((err, data)=>{
       if(err){
@@ -502,9 +526,10 @@ app.post("/getmycar" , function(req ,res){
 
 
 app.post("/addFavorites" , async function(req ,res){
- 
+  // console.log(req.body );
   const idUsers = req.body.value;
   const idCars = req.body.idCar;
+  
   const user = await User.findOne({_id : idUsers})
 
   const index = user?.favorite.indexOf(idCars)
@@ -514,6 +539,7 @@ app.post("/addFavorites" , async function(req ,res){
       user?.favorite.splice(index,1)
   }
   user.save()
+  // console.log(user);
  
   res.send(200);
   
@@ -542,8 +568,8 @@ app.post('/selected' , function(req ,res){
   // console.log(iduser);
   User.findOne({_id: iduser})
   .then(data=>{
- 
-    res.send(data.favorite)
+    
+    res.send(data?.favorite)
     // console.log(data.favorite);
   })
 })
@@ -575,219 +601,201 @@ app.post('/isName' , function(req ,res){
 
 
 
+app.post('/getLatLong' , function(req ,res){
+
+const idC = req.body.idCar;
+FormCar.findOne({_id : idC})
+.then((data)=>{
+  res.send(data)
+})
+
+})
 
 
 
 
-
-
-// // Delete Cart
-// app.post('/deleteCart', function(req ,res) {
-//   let id = req.body.id;
-//   console.log(id);
-//   Cart.findOneAndDelete({
-//     _id: id
-//   }).then(()=> {
-//     res.json(200)
-//   })
-// })
-
-// // Orders
-// app.post("/Order", function(req, res) {
-//   var dateTime = new Date();
-//   // console.log(dateTime);
-//   var name = req.body.name;
-//   var address = req.body.address;
-//   var email = req.body.email;
-//   var phone = req.body.phone;
-//   var order = req.body.order;
-//   var userId = req.body.userId;
-//   var note = req.body.note;
-//   var total = req.body.total;
+app.post('/checkout' , function(req ,res){
+  // console.log(req.body.location);
+  Checkout.create({
+    feeExpress :req.body.fee,
+    dateNumber: req.body.DateNumber,
+    dateStart: req.body.dateStart,
+    arrDate : req.body.arrDates,
+    dateEnd: req.body.dateEnd,
+    idCar : req.body.idCar ,
+    idUserCheckOut : req.body.idUser,
+    idHost : req.body.idH[0],
+    price : req.body.price,
+    status : req.body.resp,
+    locationCheckOut : req.body.location,
+    currDate: req.body.dateCurr
+  })
+  res.send(200)
+})
   
-//   console.log(total);
-//   Order.create({
-//     name: name,
-//     address: address,
-//     product: order,
-//     email: email,
-//     userId: userId,
-//     note: note,
-//     status: "",
-//     date: dateTime,
-//     total: total,
-//     phone: phone
-
-//   }, function(err){
-//       if(err) {
-//         console.log("error");
-//       } else {
-//         console.log("Added success order" + name);
-//       }
-//   })
-// })  // no k co update do
 
 
-// app.get('/Order/:idUser' ,function(req, res){
-//   const idUser = req.params.idUser;
-//   // console.log(idUser);
-//   Order.find({'userId': idUser})
-//   .exec( (err,data)=>{
-//     if(err){
-//       console.log("err");
-//     }else {
-//       res.json(data);
-//       // console.log(data);
-//     }
-//   })
-// })
 
 
-// app.get('/Order' ,function(req, res){
- 
-//   Order.find({})
-//   .exec( (err,data)=>{
-//     if(err){
-//       console.log("err");
-//     }else {
-//       res.json(data)
-      
-//     }
-//   })
-// })
+app.post('/myOrders' ,async function(req ,res){
+  // console.log(req.body.id);
+  const data = await Checkout.find({}).populate('idUserCheckOut').populate('idCar')
+  // console.log(data);
+  const newData = data.filter(dt => dt.idHost == req.body.id)
+  res.send(newData)
+  // console.log(newData);
 
-// // Admin 
+  // var arridUserCheckOut = data.map(i=>i.idUserCheckOut)
+  // const userData =await User.find({"_id": {$in: arridUserCheckOut}})
+
+  // res.send({data: data , info: userData })
 
 
-// app.post('/loginAdmin', function(req, res){
-//  Admin.find({admin: req.body.admin})
-//   .then((resq)=> {
-//     console.log(resq[0].password, req.body.password);
+})
+
+
+app.post('/Confirm' , function(req ,res) {
+    // console.log(req.body);
+  const id = req.body.idConfirm;
+  const num = req.body.numConfirm;
+  const idUser = req.body.id;
+  // console.log(id ,num,idUser)
+  User.findOne({_id: idUser}).then(dt=>{
+     Checkout.updateOne({_id: id}, {status: num})
+    .then(() => {
+    //  return res.send(200)
+    })
+    return res.send(dt.tokenDevices)
+  })
     
-//     if(resq[0].password == req.body.password){
+})
 
-//       res.status(200).send({
-//         valid: true,
-//         message: "Successful Login",
-//         id: resq[0]._id
-//     })
-           
-        
-//     }else {
-//       res.status(200).send({
-//         valid: false,
-//         message: "Password Wrong"
-//       })
-//     }
-//   })
-//  })
-// // Del Product Admin 
+app.post('/unConfirm' , function(req ,res) {
+  // console.log(req.body);
+const id = req.body.idConfirm;
+// const num = req.body.numConfirm;
+// console.log(id ,num);
 
-// app.post('/deleteProduct', function(req ,res) {
-//   let id = req.body.id;
-//   console.log(id);
-//   Product.findOneAndDelete({
-//     _id: id
-//   }).then(()=> {
-//     res.json(200)
-//   })
-// })
-// // Del Order Admin
-// app.post('/deleteOrder', function(req ,res) {
-//   let id = req.body.id;
-//   // console.log(id);
-//   Order.findOneAndDelete({
-//     _id: id
-//   }).then(()=> {
-//     res.json(200)
-//   })
-// })
+  Checkout.findOneAndDelete({_id: id})
+  .then(() => {
+    res.send(200)
+ 
+  })
+})
 
-// // view order
+app.post('/userAuthen' ,function(req ,res){
+  const idu = req.body.id;
+  // console.log(idu);
+  FormCar.find({idUser : idu})
+  .then(dt=>{
+    res.send(dt)
+    // console.log(dt);
+  })
+ 
+})
 
-// app.get('/viewOrder' , function(req, res) {
-//   Order.find({})
-//   .exec((err,data)=>{
-//     if(err) {
-//       console.log("Err");
-//     } else {
-//       res.json(data)
-//     }
-//   })
-// })
+app.post('/getDataMyTrip', async function(req , res){
+  const ids = req.body.idUser;
+  const data=  await Checkout.find({}).populate('idHost').populate('idCar')
+  const newData = data.filter(dt=>dt.idUserCheckOut == ids )
+  res.send(newData)
+
+})
 
 
-// app.post('/updateStatus' , function(req , res) {
-//   // console.log(req.body.status);
-//   // console.log(req.body.id);
-//   const id = req.body.id;
-//   const Status = req.body.status;
-//   console.log(Status);
-//   Order.findOne({_id: id,})
-//   .then(data => {
-//     // console.log(data);
-//     Order.updateOne(
-//       {_id: id}, {status: Status}
-//     ).then(() => {
-//       res.json(200)
-//     })
-  
-//   })
-// })
+app.post('/ratingAPI' , async function(req ,res){
 
-// // add product admin
-// app.post('/data', function(req,res){
-//   const name = req.body.nameAdd;
-//   const price = req.body.priceAdd;
-//   const quantity = req.body.quantityAdd;
-//   const kind = req.body.kindAdd;
-//   const description = req.body.descriptionAdd;
-//   const image = req.body.imageAdd;
-  
-//   Product.create({
-//     name: name,
-//     quantity: quantity,
-//     price: price,
-//     kind: kind,
-//     description: description,
-//     image: image
-//   })
+  const condition = {_id: req.body.IdHost}
+  await User.findOne(condition).then(async(data) => {
+      const set = {
+          review: [
+              ...data.review,
+          {
+              date : req.body.dates,
+              rating: req.body.rating,
+              comment: req.body.com,
+              idRating: req.body.idRating
+          }]
+      }
+      await User.updateOne(condition, set)
+    
+    
+      res.send(200)
+  })
+ 
+})
 
-// })
+app.post('/reviewAPI' , async function(req ,res){
+  // console.log(req.body.id);
 
-// // edit products admin
-// app.post("/data/id=",function(req ,res){
-//   const id = req.body.id;
-//   const name = req.body.nameEdit;
-//   const price = req.body.priceEdit;
-//   const image = req.body.imageEdit;
-//   const quantity = req.body.quantityEdit;
-//   const kind = req.body.kindEdit;
+  const condition = {_id : req.body.id}
+  await User.findOne(condition).populate('review.idRating').then(dt=>{
+    // console.log(dt?.review);
+    res.send(dt?.review)
+  })
+  // res.send(200)
+})
 
-//     Product.updateOne({
-//         _id: id},
-//         { 
-//         name: name,
-//         quantity: quantity,
-//         kind: kind,
-//         price: price,
-//         image: image
-//         }
-//     ).then(()=>{
-//       res.json(200)
-//     })
-  
-// })
 
-// // discount
-// app.get('/discount/' ,(req, res)=>{
-//   console.log(req.query.value);
+app.post('/Completed' ,function(req ,res){
+  // console.log(req.body);
+  Checkout.updateOne({_id: req.body.id}, {checkCompleted: req.body.number})
+  .then(() => {
+    res.send(200)
+  })
+})
 
-//   res.json(req.query.value==='flash25'?25:0)
+app.post('/dateChecked' , function(req ,res){
+  const idc = req.body.id;
+  // console.log(idu);
+  Checkout.find({idCar: idc})
+  .then(async (dt) => {
+    const getDate = await dt.map(item => {
+      // console.log(item);
+        return {day : item.arrDate , st : item.status}
+    })
 
-// })
+    const data = [];
+    getDate.map(item => {
+      // item.map(item2 => {
+      //   data.push(item2)
+      // })
+      // console.log(item);
+    //  console.log(item);
+      data.push(item)
+    })
+    res.send(data)
+    // console.log(data);
+  })
+})
 
 
 
 
+app.post('/relatedCar' , function(req ,res){
+  // console.log(req.body);
+  FormCar.find({address : req.body.ad}).then(dt=>{
+    res.send(dt)
+  })
+})
 
+
+app.post('/delToken' , function(req , res){
+  const {id, token} = req.body;
+  User.findOne({ _id: id })
+  .then((data) => {
+    const tokenFilter = data.tokenDevices.filter(item => {
+      return item.value != token
+    })
+    User.updateOne({ _id: id }, { tokenDevices: tokenFilter })
+    .then(() => res.sendStatus(200))
+  })
+
+})
+
+app.post('/getToken', function(req , res){
+    const condition = {_id : req.body.id}
+    User.findOne(condition).then(dt=>{
+      res.send(dt)
+    })
+})

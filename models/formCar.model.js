@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
 
 
+const Schema = mongoose.Schema;
+
 const formCarSchema = new mongoose.Schema({
-    idUser: String,
+    idUser: {type: Schema.Types.ObjectId , ref: 'user'},
     transmission: String,
     licenseplates: String,
     year : String,
@@ -22,7 +24,19 @@ const formCarSchema = new mongoose.Schema({
     map: Boolean,
     cameraback : Boolean,
     imagesCar: String,
-    status: Boolean
+    status: Boolean,
+    location: {
+        coords: {
+            latitude: Number,
+            longitude: Number,
+            altitude: Number | null,
+            accuracy: Number | null,
+            altitudeAccuracy: Number | null,
+            heading: Number | null,
+            speed: Number | null,
+        },
+        timestamp: Number,
+    }
 });
 const formCars= mongoose.model('formCars', formCarSchema,'formCar');
 
