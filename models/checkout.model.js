@@ -17,7 +17,9 @@ const checkOutSchema = new mongoose.Schema({
     locationCheckOut : [{
         
     }],
-    currDate : String
+    currDate : String,
+    moneyPaid : [],
+    service : []
   
 });
 const checkout = mongoose.model('checkout', checkOutSchema,'checkout');

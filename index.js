@@ -12,7 +12,7 @@ const { router } = require('json-server');
 const { constants, loadavg } = require('os');
 const md5 = require('md5');
 // const { updateOne } = require('./models/products.model');
-const { log } = require('console');
+const { log, time } = require('console');
 const { send } = require('process');
 
 
@@ -22,6 +22,7 @@ const User = require('./models/user.model');
 const Coupon = require('./models/discount.model');
 const Admin = require('./models/admin.model');
 const FormCar = require('./models/formCar.model');
+const Notification  = require('./models/notification.model')
 
 const app = express();
 
@@ -303,19 +304,52 @@ app.post('/updateStatus' , function(req , res) {
 })
 
 app.get('/checkoutAdmin' , async function(req ,res){
-  
    const data = await Checkout.find({}).populate('idUserCheckOut').populate('idCar').populate('idHost')
    .then(dt=>{
      res.send(dt)
-    // console.log(data);
    })
-   
-  
  
-  
+})
+
+app.get('/statictis' , async function(req ,res){
+  await Checkout.find({})
+  .then(dt=>{
+    // console.log(dt.price);
+    res.send(dt)
+  })
+
 })
 
 
+app.get('/numberUser' , async function(req , res){
+   await User.find({})
+  .then(dt=>{
+    const n = dt.length
+    res.send({n})
+  })
+})
+
+app.get('/onTop' , function(req, res){
+  
+  var n = 0
+  Checkout.find({}).populate('idCar').populate('idHost').then(dt=>{
+    
+   res.send(dt)
+
+  })
+
+})
+app.post('/hgCar' , function(req , res){
+  // console.log(req.body.id);
+  FormCar.findOne({_id : req.body.id}).populate('idUser').then(dt=>{
+    res.send(dt)
+  })
+})
+app.get('/numberBrowsingCar' , function(req ,res){
+  FormCar.find({status : true}).then(dt=>{
+      res.send({n : dt.length})
+  })
+})
 app.post('/upload', uploadUser.single('photo'), (req, res) => {
   // console.log(req);
   const id = req.body.id;
@@ -628,7 +662,9 @@ app.post('/checkout' , function(req ,res){
     price : req.body.price,
     status : req.body.resp,
     locationCheckOut : req.body.location,
-    currDate: req.body.dateCurr
+    currDate: req.body.dateCurr,
+    moneyPaid : req.body.prices,
+    service : req.body.serviceFee
   })
   res.send(200)
 })
@@ -639,20 +675,29 @@ app.post('/checkout' , function(req ,res){
 
 app.post('/myOrders' ,async function(req ,res){
   // console.log(req.body.id);
-  const data = await Checkout.find({}).populate('idUserCheckOut').populate('idCar')
+  const data = await Checkout.find({}).sort({currDate : -1}).populate('idUserCheckOut').populate('idCar')
   // console.log(data);
   const newData = data.filter(dt => dt.idHost == req.body.id)
-  res.send(newData)
   // console.log(newData);
-
-  // var arridUserCheckOut = data.map(i=>i.idUserCheckOut)
-  // const userData =await User.find({"_id": {$in: arridUserCheckOut}})
-
-  // res.send({data: data , info: userData })
+  res.send(newData)
+  
 
 
 })
 
+
+app.post('/myOrderss' ,async function(req ,res){
+  // console.log(req.body.id);
+  const data = await Checkout.find({_id :req.body.id }).populate('idUserCheckOut').populate('idCar')
+  // console.log(data);
+  // const newData = data.filter(dt => dt.idHost == req.body.id)
+  // console.log(data);
+
+  res.send(data)
+  
+
+
+})
 
 app.post('/Confirm' , function(req ,res) {
     // console.log(req.body);
@@ -660,14 +705,13 @@ app.post('/Confirm' , function(req ,res) {
   const num = req.body.numConfirm;
   const idUser = req.body.id;
   // console.log(id ,num,idUser)
-  User.findOne({_id: idUser}).then(dt=>{
-     Checkout.updateOne({_id: id}, {status: num})
-    .then(() => {
-    //  return res.send(200)
+  Checkout.updateOne({_id: id}, {status: num})
+  .then(() => {
+    User.findOne({_id: idUser}).then(dt=>{
+      // console.log(dt.tokenDevices);
+      res.send(dt.tokenDevices)
     })
-    return res.send(dt.tokenDevices)
   })
-    
 })
 
 app.post('/unConfirm' , function(req ,res) {
@@ -693,12 +737,32 @@ app.post('/userAuthen' ,function(req ,res){
   })
  
 })
+app.post('/userAuthens' ,function(req ,res){
+  const idu = req.body.id;
+  // console.log(idu);
+  FormCar.find({idUser : idu})
+  .then(dt=>{
+    res.send(dt)
+    // console.log(dt);
+  })
+ 
+})
 
 app.post('/getDataMyTrip', async function(req , res){
   const ids = req.body.idUser;
-  const data=  await Checkout.find({}).populate('idHost').populate('idCar')
+  const data=  await Checkout.find({}).sort({currDate : -1}).populate('idHost').populate('idCar')
   const newData = data.filter(dt=>dt.idUserCheckOut == ids )
   res.send(newData)
+
+})
+
+app.post('/getDataMyTrips', async function(req , res){
+  const ids = req.body.idDetail;
+  const data=  await Checkout.find({_id : ids}).populate('idHost').populate('idCar')
+  // console.log(data);
+  // const newData = data.filter(dt=>dt.idUserCheckOut == ids )
+  res.send(data)
+  // console.log(data);
 
 })
 
@@ -729,9 +793,9 @@ app.post('/reviewAPI' , async function(req ,res){
   // console.log(req.body.id);
 
   const condition = {_id : req.body.id}
-  await User.findOne(condition).populate('review.idRating').then(dt=>{
+  await User.findOne(condition).populate('review.idRating').sort({date: 1}).then(dt=>{
     // console.log(dt?.review);
-    res.send(dt?.review)
+    res.send(dt?.review.reverse())
   })
   // res.send(200)
 })
@@ -798,4 +862,50 @@ app.post('/getToken', function(req , res){
     User.findOne(condition).then(dt=>{
       res.send(dt)
     })
+})
+
+
+app.post('/notificationRes', function(req ,res){
+  // console.log(req.body);
+  Notification.create({
+    idHost : req.body.idh, 
+    idUser : req.body.u,
+    title : req.body.title,
+    text :  req.body.text, 
+    date : req.body.dateNoti,
+    time : req.body.time
+    
+  })
+  res.send(200)
+})
+
+app.post('/notificationRess', function(req ,res){
+  // console.log(req.body);
+  Notification.create({
+    idHost : req.body.idh, 
+    idUser : req.body.idu,
+    title : req.body.title,
+    text :  req.body.text, 
+    date : req.body.dateNoti,
+    time : req.body.time,
+    car : req.body.car
+  })
+  res.send(200)
+})
+app.post('/dataNoti' , function(req ,res){
+  // console.log(req.body.value);
+  const condition = {idHost : req.body.value}
+  Notification.find(condition).sort({date: -1,time : -1}).populate('idHost').populate('car').then(dt=>{
+    res.send(dt)
+  })
+})
+
+app.post('/getNumberTrip' , function(req , res){
+  // console.log(req.body.id);
+  Checkout.find({idCar : req.body.id}).then(dt=>{
+    // console.log(dt.length); 
+    const number = dt.length;
+    res.send({number})
+      // res.send(number)
+  })
 })
