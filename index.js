@@ -16,24 +16,70 @@ const { log, time } = require('console');
 const { send } = require('process');
 
 
-// const Product = require('./models/products.model');
+const app = express();
+const socket = require('socket.io');
+const http = require('http');
+const server = http.createServer(app);
+const io = socket(server, {
+    cors:true,
+})
+const { addUser, removeUser, getUser, getUsersInRoom } = require('./users');
+
+
 const Checkout = require('./models/checkout.model');
 const User = require('./models/user.model');
 const Coupon = require('./models/discount.model');
 const Admin = require('./models/admin.model');
 const FormCar = require('./models/formCar.model');
 const Notification  = require('./models/notification.model')
+const Chat = require('./models/chat.model')
 
-const app = express();
 
-app.listen(port, () => console.log(`Example app listening`))
+
+server.listen(port, () => console.log(`Example app listening`))
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-// app.use(logger('dev'));
+
+
+ 
+io.on('connection', (socket) => {
+
+  socket.on('join', ({ name, room }, callback) => {
+      const { error, user } = addUser({ id: socket.id, name, room })
+
+      if(error) return callback(error);
+
+      socket.join(user.room)
+  })
+
+  socket.on('sendMessage', (message, callback) => {
+      const user = getUser(socket.id)
+
+      io.to(user.room).emit('message', { user: user.name, data: message })
+
+      Chat.findOne({room: user.room })
+      .then(data => {
+          const { messages } = data;
+          messages.unshift(message[0]);
+          const newMessages = messages
+          const condition = {room: user.room}
+          const handler = { messages: newMessages }
+          Chat.updateOne(condition, handler)
+          .then(() => {})
+      })
+  })
+
+  socket.on('disconnect', () => {
+      console.log('User had left !!');
+  })
+})
+
+
+
 
 mongoose.connect(process.env.MONGO_URL, (err) =>{
    if(err){
@@ -438,11 +484,8 @@ app.post('/formCar' , function(req ,res){
   const ward = req.body.ward;
   const imageCars = req.body.imageCar;
   const location = req.body.location;
+  const addressCurr = req.body.addressCurr;
 
-  // console.log(imageCars);
-
-  // console.log(idUser,licen,years,seat,price,transmission,fuel,model,brand,sunroof,bluetooth,gps,map,camera,note,fueled,address,district,ward);
-  // console.log();
   FormCar.create({
     idUser: idUser,
     transmission: transmission,
@@ -464,7 +507,8 @@ app.post('/formCar' , function(req ,res){
     map: map,
     cameraback: camera,
     imagesCar: imageCars,
-    location: location,
+    addresss: addressCurr,
+    location: location
    
     },function(err){
      if(err){
@@ -838,7 +882,7 @@ app.post('/dateChecked' , function(req ,res){
 
 app.post('/relatedCar' , function(req ,res){
   // console.log(req.body);
-  FormCar.find({address : req.body.ad}).then(dt=>{
+  FormCar.find({addresss : req.body.ad}).then(dt=>{
     res.send(dt)
   })
 })
@@ -908,4 +952,27 @@ app.post('/getNumberTrip' , function(req , res){
     res.send({number})
       // res.send(number)
   })
+})
+
+app.post('/checkroom' , async function(req, res){
+    const room = req.body.room;
+    // console.log(room);
+    const isCheck = await Chat.findOne({ room: room })
+    if(!isCheck) {
+        Chat.create({
+            room: room,
+            messages: []  
+        }).then(() => {
+            res.json({create: true})
+        })
+  }
+})
+
+
+app.post('/showMessages' , function(req, res){
+  const room = req.body.room;
+    Chat.find({room: room})
+    .then(data =>{
+        res.json(data)
+    })
 })

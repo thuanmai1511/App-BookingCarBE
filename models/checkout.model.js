@@ -14,9 +14,7 @@ const checkOutSchema = new mongoose.Schema({
     feeExpress : Number,
     status : String,
     checkCompleted : 0,
-    locationCheckOut : [{
-        
-    }],
+    locationCheckOut : String,
     currDate : String,
     moneyPaid : [],
     service : []

@@ -35,8 +35,9 @@ const formCarSchema = new mongoose.Schema({
             heading: Number | null,
             speed: Number | null,
         },
-        timestamp: Number,
-    }
+        timestamp: Number
+    },
+    addresss : String
 });
 const formCars= mongoose.model('formCars', formCarSchema,'formCar');
 
