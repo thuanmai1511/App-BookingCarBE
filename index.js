@@ -882,7 +882,7 @@ app.post('/dateChecked' , function(req ,res){
 
 app.post('/relatedCar' , function(req ,res){
   // console.log(req.body);
-  FormCar.find({addresss : req.body.ad}).then(dt=>{
+  FormCar.find({address : req.body.ad}).then(dt=>{
     res.send(dt)
   })
 })
