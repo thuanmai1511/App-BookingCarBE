@@ -37,7 +37,13 @@ const formCarSchema = new mongoose.Schema({
         },
         timestamp: Number
     },
-    addresss : String
+    addresss : String,
+    review : [{
+        comment: String,
+        date: String,
+        idRating:  {type: Schema.Types.ObjectId , ref: 'user'},
+        rating: Number
+    }],
 });
 const formCars= mongoose.model('formCars', formCarSchema,'formCar');
 

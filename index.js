@@ -814,7 +814,7 @@ app.post('/getDataMyTrips', async function(req , res){
 app.post('/ratingAPI' , async function(req ,res){
 
   const condition = {_id: req.body.IdHost}
-  await User.findOne(condition).then(async(data) => {
+  await FormCar.findOne(condition).then(async(data) => {
       const set = {
           review: [
               ...data.review,
@@ -825,7 +825,7 @@ app.post('/ratingAPI' , async function(req ,res){
               idRating: req.body.idRating
           }]
       }
-      await User.updateOne(condition, set)
+      await FormCar.updateOne(condition, set)
     
     
       res.send(200)
@@ -837,7 +837,7 @@ app.post('/reviewAPI' , async function(req ,res){
   // console.log(req.body.id);
 
   const condition = {_id : req.body.id}
-  await User.findOne(condition).populate('review.idRating').sort({date: 1}).then(dt=>{
+  await FormCar.findOne(condition).populate('review.idRating').sort({date: 1}).then(dt=>{
     // console.log(dt?.review);
     res.send(dt?.review.reverse())
   })
@@ -939,7 +939,7 @@ app.post('/notificationRess', function(req ,res){
 app.post('/dataNoti' , function(req ,res){
   // console.log(req.body.value);
   const condition = {idHost : req.body.value}
-  Notification.find(condition).sort({date: -1,time : -1}).populate('idHost').populate('car').then(dt=>{
+  Notification.find(condition).sort({date: 1,time : -1}).populate('idHost').populate('car').then(dt=>{
     res.send(dt)
   })
 })
@@ -975,4 +975,33 @@ app.post('/showMessages' , function(req, res){
     .then(data =>{
         res.json(data)
     })
+})
+app.post('/cancel' ,function(req ,res){
+  const condition = {_id : req.body.id}
+  Checkout.findOneAndDelete(condition)
+  .then(() => {
+    res.send(200)
+  })
+})
+
+
+app.post('/getTokenCancelTrip', function(req , res){
+  const condition = {_id : req.body.idH}
+  User.findOne(condition).then(dt=>{
+    res.send(dt)
+  })
+})
+
+app.post('/notificationCancelTrip', function(req ,res){
+  // console.log(req.body);
+  Notification.create({
+    idHost : req.body.idh, 
+    idUser : req.body.idu,
+    title : req.body.title,
+    text :  req.body.text, 
+    date : req.body.dateNoti,
+    time : req.body.time,
+    car : req.body.car
+  })
+  res.send(200)
 })
