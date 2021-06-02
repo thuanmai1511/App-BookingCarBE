@@ -485,7 +485,7 @@ app.post('/formCar' , function(req ,res){
   const imageCars = req.body.imageCar;
   const location = req.body.location;
   const addressCurr = req.body.addressCurr;
-
+  const expresss = req.body.express;
   FormCar.create({
     idUser: idUser,
     transmission: transmission,
@@ -501,6 +501,7 @@ app.post('/formCar' , function(req ,res){
     ward: ward,
     fueled: fueled,
     note: note,
+    express : expresss,
     sunroof: sunroof,
     bluetooth: bluetooth,
     gps: gps,
@@ -543,7 +544,7 @@ app.get("/detailCar/:id" , function(req , res){
 
   const id = req.params.id;
  
-  FormCar.find({_id: id})
+  FormCar.find({_id: id}).populate('idUser')
     .exec((err, data)=>{
       if(err){
         console.log(err);
@@ -580,14 +581,9 @@ app.get("/getDetailCar/type=:type" , function(req ,res){
   // console.log(req.params.type);
   const type= req.params.type;
   // console.log(type);
-  FormCar.find({address: type})
-    .exec((err, data)=>{
-      if(err){
-        console.log(err);
-      }else {
-        res.json(data)
-      }
-    })
+  FormCar.find({address: type}).then(dt=>{
+    res.send(dt)
+  })
 })
 
 app.post("/getmycar" , function(req ,res){
@@ -837,9 +833,9 @@ app.post('/reviewAPI' , async function(req ,res){
   // console.log(req.body.id);
 
   const condition = {_id : req.body.id}
-  await FormCar.findOne(condition).populate('review.idRating').sort({date: 1}).then(dt=>{
+  await FormCar.findOne(condition).populate('review.idRating').sort({date: -1}).then(dt=>{
     // console.log(dt?.review);
-    res.send(dt?.review.reverse())
+    res.send(dt?.review)
   })
   // res.send(200)
 })
@@ -965,7 +961,8 @@ app.post('/checkroom' , async function(req, res){
         }).then(() => {
             res.json({create: true})
         })
-  }
+    }
+    res.sendStatus(200)
 })
 
 
@@ -1004,4 +1001,26 @@ app.post('/notificationCancelTrip', function(req ,res){
     car : req.body.car
   })
   res.send(200)
+})
+
+app.post('/ratingCustomer' , async function(req ,res){
+
+  const condition = {_id: req.body.idCheckout}
+  await User.findOne(condition).then(async(data) => {
+      const set = {
+          review: [
+              ...data.review,
+          {
+              date : req.body.dates,
+              rating: req.body.rating,
+              comment: req.body.com,
+              idRating: req.body.idRating
+          }]
+      }
+      await User.updateOne(condition, set)
+    
+    
+      res.send(200)
+  })
+ 
 })

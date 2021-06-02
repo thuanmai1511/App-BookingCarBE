@@ -25,6 +25,7 @@ const formCarSchema = new mongoose.Schema({
     cameraback : Boolean,
     imagesCar: String,
     status: Boolean,
+    express : Boolean,
     location: {
         coords: {
             latitude: Number,
